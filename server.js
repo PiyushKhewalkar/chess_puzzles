@@ -12,7 +12,7 @@ app.use(cors());
 app.use(express.static('public')); // for serving frontend
 
 // Load puzzles from CSV (limit for now to 1000)
-fs.createReadStream('lichess_db_puzzle.csv')
+fs.createReadStream('lichess_reduced.csv')
   .pipe(csv())
   .on('data', (row) => {
     if (puzzles.length < 1000) {
