@@ -43,8 +43,7 @@
         color: var(--text);
         margin: 0;
         padding: 0;
-        height: 100vh;
-        overflow: hidden;
+        overflow: auto;
       }
 
       .app-container {
@@ -616,6 +615,20 @@
       let waitingForOpponent = false; // Flag to track if we're waiting for opponent move
       let puzzleId = ""; // Store the puzzle ID
       let puzzlePlays = 0; // Store the number of times the puzzle has been played
+
+      const boardWrapper = document.getElementById('board');
+
+      // When mouse is down on board, stop scrolling
+boardWrapper.addEventListener('mouseenter', function() {
+  document.body.style.overflow = 'hidden';
+});
+
+// When mouse leaves the board, allow scrolling again
+boardWrapper.addEventListener('mouseleave', function() {
+  document.body.style.overflow = 'auto';
+});
+
+
 
       // Custom piece theme function
       function customPieceTheme(piece) {
