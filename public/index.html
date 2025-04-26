@@ -605,6 +605,16 @@
     </div>
 
     <script>
+
+function disableScroll() {
+  document.body.style.overflow = 'hidden';
+}
+
+function enableScroll() {
+  document.body.style.overflow = 'auto';
+}
+
+
       let game, board, puzzleMoves, currentMoveIndex = 0, playerRating = 1500, puzzleRating;
       let playerColor = null; // Will be determined based on puzzle
       let minRating = 800;   // Default minimum puzzle rating
@@ -617,16 +627,6 @@
       let puzzlePlays = 0; // Store the number of times the puzzle has been played
 
       const boardWrapper = document.getElementById('board');
-
-      // When mouse is down on board, stop scrolling
-boardWrapper.addEventListener('mouseenter', function() {
-  document.body.style.overflow = 'hidden';
-});
-
-// When mouse leaves the board, allow scrolling again
-boardWrapper.addEventListener('mouseleave', function() {
-  document.body.style.overflow = 'auto';
-});
 
 
 
@@ -712,6 +712,21 @@ boardWrapper.addEventListener('mouseleave', function() {
           updateStatus("Error loading puzzle. Please try again.", "error");
         }
       }
+
+      // Scroll control during piece drag
+const boardElement = document.getElementById('board');
+
+// Disable scroll when dragging a piece
+boardElement.addEventListener('mousedown', disableScroll);
+boardElement.addEventListener('touchstart', disableScroll);
+
+// Enable scroll after drag ends
+boardElement.addEventListener('mouseup', enableScroll);
+boardElement.addEventListener('touchend', enableScroll);
+
+// Also enable scroll if mouse leaves the board
+boardElement.addEventListener('mouseleave', enableScroll);
+
 
       function generateRandomId() {
         const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
