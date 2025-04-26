@@ -1,0 +1,426 @@
+<html>
+  <head>
+    <title>Chess Puzzle App</title>
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+
+    <!-- Chessboard.js CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css" />
+
+    <!-- Chess.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.12.0/chess.min.js"></script>
+
+    <!-- Chessboard.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+
+    <style>
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        text-align: center;
+      }
+      .rating-filter {
+        margin: 15px 0;
+        padding: 10px;
+        background-color: #f5f5f5;
+        border-radius: 5px;
+      }
+      #board {
+        width: 400px;
+        margin: 0 auto;
+      }
+      .button {
+        padding: 8px 16px;
+        margin: 5px;
+        cursor: pointer;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+      }
+      .button:hover {
+        background-color: #45a049;
+      }
+      .info-panel {
+        margin-top: 15px;
+        padding: 10px;
+        background-color: #f9f9f9;
+        border-radius: 5px;
+      }
+      .game-container {
+        display: flex;
+        justify-content: space-between;
+        max-width: 800px;
+        margin: 0 auto;
+      }
+      .board-container {
+        flex: 0 0 400px;
+      }
+      .moves-container {
+        flex: 0 0 350px;
+        padding: 10px;
+        background-color: #f9f9f9;
+        border-radius: 5px;
+        max-height: 400px;
+        overflow-y: auto;
+        text-align: left;
+      }
+      .moves-list {
+        list-style-type: none;
+        padding: 0;
+        margin: 0;
+      }
+      .moves-list li {
+        padding: 5px 10px;
+        border-bottom: 1px solid #ddd;
+      }
+      .moves-list li:nth-child(odd) {
+        background-color: #f0f0f0;
+      }
+      .current-move {
+        background-color: #d4edda !important;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>♟️ Solve the Chess Puzzle</h2>
+      
+      <div class="rating-filter">
+        <h3>Puzzle Rating Filter</h3>
+        <div>
+          <label for="minRating">Min Rating:</label>
+          <input type="number" id="minRating" min="500" max="3000" value="800" step="100">
+          <label for="maxRating">Max Rating:</label>
+          <input type="number" id="maxRating" min="500" max="3000" value="2000" step="100">
+          <button id="applyFilter" class="button">Apply Filter</button>
+        </div>
+      </div>
+      
+      <div class="game-container">
+        <div class="board-container">
+          <div id="board"></div>
+        </div>
+        <div class="moves-container">
+          <h3>Move History</h3>
+          <ul id="movesList" class="moves-list"></ul>
+        </div>
+      </div>
+      
+      <div class="info-panel">
+        <p id="puzzleRating" style="font-weight: bold;"></p>
+        <p id="status"></p>
+        <p id="rating" style="font-weight: bold;">Current Rating: 1500</p>
+        <p id="hint" style="font-weight: bold;"></p>
+        <p id="currentPlayer" style="font-weight: bold;"></p>
+        <button id="hintBtn" class="button">Show Hint</button>
+        <button id="resetBtn" class="button">Reset Puzzle</button>
+        <button id="nextPuzzle" class="button">Next Puzzle</button>
+      </div>
+    </div>
+
+    <script>
+      let game, board, puzzleMoves, currentMoveIndex = 0, playerRating = 1500, puzzleRating;
+      let playerColor = 'w'; // Default player color (will be determined by puzzle)
+      let minRating = 800;   // Default minimum puzzle rating
+      let maxRating = 2000;  // Default maximum puzzle rating
+      let currentPuzzleFen; // Store the starting position of the current puzzle
+      let moveHistory = []; // Array to store move history objects
+
+      // Custom piece theme function to map chess.js piece names to your file naming convention
+      function customPieceTheme(piece) {
+        // Convert piece codes like 'wP' to file names like 'pawn-white.png'
+        const pieceType = piece.charAt(1).toLowerCase();
+        const pieceColor = piece.charAt(0) === 'w' ? 'white' : 'black';
+        
+        let pieceName;
+        switch(pieceType) {
+          case 'p': pieceName = 'pawn'; break;
+          case 'r': pieceName = 'rook'; break;
+          case 'n': pieceName = 'knight'; break;
+          case 'b': pieceName = 'bishop'; break;
+          case 'q': pieceName = 'queen'; break;
+          case 'k': pieceName = 'king'; break;
+          default: pieceName = pieceType;
+        }
+        
+        return `chess_pieces/${pieceName}-${pieceColor}.png`;
+      }
+
+      async function loadPuzzle() {
+        try {
+          // Update the URL to include rating filter parameters
+          const res = await fetch(`/puzzle/random?minRating=${minRating}&maxRating=${maxRating}`);
+          const puzzle = await res.json();
+          puzzleMoves = puzzle.moves;
+          currentMoveIndex = 0;
+          puzzleRating = puzzle.rating;  // Rating of the puzzle
+          game = new Chess(puzzle.fen);
+          currentPuzzleFen = puzzle.fen; // Store starting position
+          
+          // Clear move history
+          moveHistory = [];
+          updateMoveHistory();
+          
+          // Display the current puzzle rating
+          document.getElementById('puzzleRating').innerText = `Puzzle Rating: ${puzzleRating}`;
+          
+          // Determine player color based on whose turn it is in the puzzle
+          playerColor = game.turn();
+          
+          // Use the custom piece theme function
+          board = Chessboard('board', {
+            position: puzzle.fen,
+            draggable: true,
+            onDrop: onDrop,
+            pieceTheme: customPieceTheme
+          });
+
+          document.getElementById('status').innerText = "💡 Solve the puzzle!";
+          document.getElementById('hint').innerText = ""; // clear hint
+          updateCurrentPlayer();
+          
+          // If it's not the player's turn initially, make the first move automatically
+          if (game.turn() !== playerColor) {
+            makeOpponentMove();
+          }
+        } catch (error) {
+          console.error("Error loading puzzle:", error);
+          document.getElementById('status').innerText = "Error loading puzzle. Please try again.";
+        }
+      }
+
+      function onDrop(source, target) {
+        // Only allow moves if it's the player's turn
+        if (game.turn() !== playerColor) {
+          return 'snapback';
+        }
+        
+        const move = game.move({ from: source, to: target, promotion: 'q' });
+        if (!move) return 'snapback';
+
+        // Add move to history
+        addMoveToHistory(move);
+
+        const expected = puzzleMoves[currentMoveIndex];
+        const played = move.from + move.to;
+
+        if (played === expected) {
+          currentMoveIndex++;
+          board.position(game.fen()); // Update board
+          
+          if (currentMoveIndex === puzzleMoves.length) {
+            document.getElementById('status').innerText = "✅ Puzzle solved!";
+            updateRating(true);  // Correct solution
+          } else {
+            // Make opponent's move after a short delay
+            setTimeout(makeOpponentMove, 500);
+          }
+          
+          updateCurrentPlayer();
+        } else {
+          document.getElementById('status').innerText = "❌ Wrong move!";
+          updateRating(false);  // Wrong move
+          game.undo(); // Undo the incorrect move
+          
+          // Remove the last move from history since it was wrong
+          moveHistory.pop();
+          updateMoveHistory();
+          
+          return 'snapback';
+        }
+      }
+      
+      // Function to make the opponent's move automatically
+      function makeOpponentMove() {
+        if (currentMoveIndex < puzzleMoves.length) {
+          const nextMove = puzzleMoves[currentMoveIndex];
+          const from = nextMove.slice(0, 2);
+          const to = nextMove.slice(2, 4);
+          
+          const move = game.move({ from: from, to: to, promotion: 'q' });
+          
+          // Add opponent's move to history
+          addMoveToHistory(move);
+          
+          board.position(game.fen());
+          currentMoveIndex++;
+          
+          updateCurrentPlayer();
+          
+          // Check if puzzle is solved after opponent's move
+          if (currentMoveIndex === puzzleMoves.length) {
+            document.getElementById('status').innerText = "✅ Puzzle solved!";
+            updateRating(true);
+          }
+        }
+      }
+
+      // Add move to history and update display
+      function addMoveToHistory(move) {
+        const moveNumber = Math.floor((moveHistory.length / 2) + 1);
+        const isWhite = move.color === 'w';
+        
+        // Get piece symbol
+        let pieceSymbol = '';
+        switch(move.piece) {
+          case 'p': pieceSymbol = ''; break;
+          case 'n': pieceSymbol = 'N'; break;
+          case 'b': pieceSymbol = 'B'; break;
+          case 'r': pieceSymbol = 'R'; break;
+          case 'q': pieceSymbol = 'Q'; break;
+          case 'k': pieceSymbol = 'K'; break;
+        }
+        
+        // Format the move in chess notation
+        let moveText = pieceSymbol + move.from + '-' + move.to;
+        
+        // Add capture symbol
+        if (move.captured) {
+          moveText += 'x';
+        }
+        
+        // Add check/checkmate symbol
+        if (move.san.includes('+')) {
+          moveText += '+';
+        } else if (move.san.includes('#')) {
+          moveText += '#';
+        }
+        
+        moveHistory.push({
+          number: moveNumber,
+          white: isWhite,
+          notation: moveText,
+          san: move.san
+        });
+        
+        updateMoveHistory();
+      }
+      
+      // Update the move history display
+      function updateMoveHistory() {
+        const movesList = document.getElementById('movesList');
+        movesList.innerHTML = '';
+        
+        let currentMoveNumber = 1;
+        let moveListItem = null;
+        
+        moveHistory.forEach((move, index) => {
+          if (move.white) {
+            // Start new move number for white moves
+            moveListItem = document.createElement('li');
+            moveListItem.innerHTML = `${move.number}. ${move.san} `;
+            movesList.appendChild(moveListItem);
+          } else {
+            // Add black move to the current move number
+            if (moveListItem) {
+              moveListItem.innerHTML += `${move.san}`;
+            }
+          }
+        });
+        
+        // Scroll to the bottom of the moves list
+        movesList.scrollTop = movesList.scrollHeight;
+      }
+
+      // Update current player turn
+      function updateCurrentPlayer() {
+        const turn = game.turn();  // 'w' for white, 'b' for black
+        const player = turn === 'w' ? 'White to move' : 'Black to move';
+        document.getElementById('currentPlayer').innerText = player;
+        
+        // Highlight if it's the player's turn or not
+        if (turn === playerColor) {
+          document.getElementById('currentPlayer').style.color = '#008000';  // Green if player's turn
+        } else {
+          document.getElementById('currentPlayer').style.color = '#800000';  // Red if opponent's turn
+        }
+      }
+
+      // Rating System Update
+      function updateRating(correct) {
+        if (correct) {
+          // Increase the rating (based on puzzle difficulty)
+          const ratingChange = Math.floor(puzzleRating / 100);
+          playerRating += ratingChange;
+          document.getElementById('status').innerText += ` (+${ratingChange} rating)`;
+        } else {
+          // Decrease the rating
+          playerRating -= 10;  // Decrease by 10 for incorrect moves
+          document.getElementById('status').innerText += " (-10 rating)";
+        }
+
+        // Update the displayed rating
+        document.getElementById('rating').innerText = `Current Rating: ${playerRating}`;
+      }
+
+      // Reset the current puzzle to initial position
+      function resetPuzzle() {
+        game = new Chess(currentPuzzleFen);
+        board.position(game.fen());
+        currentMoveIndex = 0;
+        
+        // Clear move history
+        moveHistory = [];
+        updateMoveHistory();
+        
+        document.getElementById('status').innerText = "💡 Puzzle reset! Try again.";
+        document.getElementById('hint').innerText = ""; // clear hint
+        updateCurrentPlayer();
+        
+        // If it's not the player's turn initially, make the first move automatically
+        if (game.turn() !== playerColor) {
+          makeOpponentMove();
+        }
+      }
+
+      // Add Hint Button Logic
+      document.getElementById('hintBtn').addEventListener('click', function () {
+        if (game.turn() === playerColor) {  // Only show hint when it's player's turn
+          const nextMove = puzzleMoves[currentMoveIndex];
+          if (nextMove) {
+            const source = nextMove.slice(0, 2);
+            const target = nextMove.slice(2, 4);
+            // Display the hint as a string
+            document.getElementById('hint').innerText = `Hint: Move from ${source} to ${target}`;
+          } else {
+            document.getElementById('hint').innerText = "No hint available";
+          }
+        } else {
+          document.getElementById('hint').innerText = "Wait for opponent's move";
+        }
+      });
+
+      // Reset Button Logic
+      document.getElementById('resetBtn').addEventListener('click', function() {
+        resetPuzzle();
+      });
+
+      // Next Puzzle Button Logic
+      document.getElementById('nextPuzzle').addEventListener('click', function() {
+        loadPuzzle();
+      });
+
+      // Apply Filter Button Logic
+      document.getElementById('applyFilter').addEventListener('click', function() {
+        minRating = parseInt(document.getElementById('minRating').value);
+        maxRating = parseInt(document.getElementById('maxRating').value);
+        
+        // Validate the ranges
+        if (minRating > maxRating) {
+          // Swap if min is greater than max
+          [minRating, maxRating] = [maxRating, minRating];
+          document.getElementById('minRating').value = minRating;
+          document.getElementById('maxRating').value = maxRating;
+        }
+        
+        // Load a new puzzle with the selected rating range
+        loadPuzzle();
+      });
+
+      // Initialize with the first puzzle
+      loadPuzzle();
+    </script>
+  </body>
+</html>
