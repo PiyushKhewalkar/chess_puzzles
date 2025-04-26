@@ -1,7 +1,8 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
   <head>
     <title>Chess Puzzle App</title>
-  
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 
     <!-- Chessboard.js CSS -->
@@ -14,123 +15,610 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
 
     <style>
-      .container {
-        max-width: 800px;
-        margin: 0 auto;
-        text-align: center;
+      :root {
+        --dark-bg: #1a1a1a;
+        --panel-bg: #272727;
+        --light-panel: #2a2a2a;
+        --panel-border: #333;
+        --highlight: #4c88c7;
+        --text: #e0e0e0;
+        --muted-text: #aaa;
+        --button-bg: #3a3a3a;
+        --button-hover: #444;
+        --correct-move: #388e3c;
+        --wrong-move: #d32f2f;
+        --light-square: #f0d9b5;
+        --dark-square: #b58863;
       }
-      .rating-filter {
-        margin: 15px 0;
-        padding: 10px;
-        background-color: #f5f5f5;
-        border-radius: 5px;
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
       }
-      #board {
-        width: 400px;
-        margin: 0 auto;
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        background-color: var(--dark-bg);
+        color: var(--text);
+        margin: 0;
+        padding: 0;
+        height: 100vh;
+        overflow: hidden;
       }
-      .button {
-        padding: 8px 16px;
-        margin: 5px;
-        cursor: pointer;
-        background-color: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 4px;
-      }
-      .button:hover {
-        background-color: #45a049;
-      }
-      .info-panel {
-        margin-top: 15px;
-        padding: 10px;
-        background-color: #f9f9f9;
-        border-radius: 5px;
-      }
-      .game-container {
+
+      .app-container {
         display: flex;
-        justify-content: space-between;
-        max-width: 800px;
-        margin: 0 auto;
+        width: 100%;
+        height: 100vh;
+        overflow: hidden;
       }
-      .board-container {
-        flex: 0 0 400px;
-      }
-      .moves-container {
-        flex: 0 0 350px;
-        padding: 10px;
-        background-color: #f9f9f9;
-        border-radius: 5px;
-        max-height: 400px;
+
+      .sidebar {
+        width: 280px;
+        min-width: 280px;
+        background-color: var(--panel-bg);
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid var(--panel-border);
         overflow-y: auto;
-        text-align: left;
       }
+
+      .main-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .board-container {
+        flex: 1;
+        display: flex;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .board-wrapper {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+      }
+
+      #board {
+        width: 100%;
+        height: 100%;
+        max-width: min(800px, 90vh);
+        max-height: min(800px, 90vh);
+        aspect-ratio: 1/1;
+      }
+
+      .move-history-area {
+        width: 300px;
+        background-color: var(--panel-bg);
+        border-left: 1px solid var(--panel-border);
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+      }
+
+      .control-bar {
+        height: 60px;
+        background-color: var(--panel-bg);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 20px;
+        border-top: 1px solid var(--panel-border);
+      }
+
+      .panel {
+        padding: 15px;
+        border-bottom: 1px solid var(--panel-border);
+      }
+
+      .puzzle-info {
+        display: flex;
+        align-items: center;
+      }
+
+      .puzzle-icon {
+        width: 40px;
+        height: 40px;
+        background-color: var(--panel-bg);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 15px;
+        font-size: 20px;
+      }
+
+      .puzzle-details h3 {
+        margin: 0 0 5px 0;
+        font-size: 16px;
+      }
+
+      .puzzle-details p {
+        margin: 0;
+        color: var(--muted-text);
+        font-size: 14px;
+      }
+
+      .puzzle-id {
+        color: var(--highlight);
+        font-weight: bold;
+      }
+
+      .rating-panel {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px;
+      }
+
+      .rating-indicator {
+        font-size: 42px;
+        font-weight: bold;
+        margin-bottom: 5px;
+      }
+
+      .rating-label {
+        color: var(--muted-text);
+        font-size: 14px;
+      }
+
+      .turn-indicator {
+        position: static;
+        background-color: var(--highlight);
+        padding: 12px;
+        border-radius: 5px;
+        display: flex;
+        align-items: center;
+        margin: 15px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        width: 250px;
+      }
+
+      .turn-icon {
+        font-size: 24px;
+        margin-right: 12px;
+      }
+
+      .turn-text h3 {
+        margin: 0;
+        font-size: 16px;
+        color: white;
+      }
+
+      .turn-text p {
+        margin: 3px 0 0;
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.85);
+      }
+
+      .themes-panel {
+        margin-top: auto;
+      }
+
+      .themes-title {
+        display: flex;
+        align-items: center;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--highlight);
+        margin-bottom: 10px;
+      }
+
+      .themes-icon {
+        margin-right: 8px;
+      }
+
+      .themes-description {
+        color: var(--muted-text);
+        font-size: 14px;
+        line-height: 1.4;
+      }
+
+      .difficulty-panel {
+        padding: 15px;
+      }
+
+      .difficulty-controls {
+        display: flex;
+        align-items: center;
+        margin-top: 10px;
+        gap: 10px;
+      }
+
+      .difficulty-controls input {
+        width: 70px;
+        padding: 5px;
+        background-color: var(--light-panel);
+        border: 1px solid var(--panel-border);
+        color: var(--text);
+        border-radius: 3px;
+      }
+
+      .button {
+        padding: 6px 12px;
+        background-color: var(--button-bg);
+        color: var(--text);
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 13px;
+        transition: background-color 0.2s;
+      }
+
+      .button:hover {
+        background-color: var(--button-hover);
+      }
+
+      .button-primary {
+        background-color: var(--highlight);
+      }
+
+      .button-primary:hover {
+        background-color: #3a6fa5;
+      }
+      
+      .toggle-switch {
+        display: flex;
+        align-items: center;
+        margin: 15px 0;
+      }
+
+      .toggle-slider {
+        position: relative;
+        width: 50px;
+        height: 24px;
+        background-color: var(--panel-border);
+        border-radius: 12px;
+        margin-right: 10px;
+        cursor: pointer;
+      }
+
+      .toggle-slider:before {
+        content: "";
+        position: absolute;
+        height: 20px;
+        width: 20px;
+        left: 2px;
+        bottom: 2px;
+        background-color: white;
+        border-radius: 50%;
+        transition: 0.2s;
+      }
+
+      .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+
+      .toggle-switch input:checked + .toggle-slider {
+        background-color: var(--highlight);
+      }
+
+      .toggle-switch input:checked + .toggle-slider:before {
+        transform: translateX(26px);
+      }
+
+      .toggle-label {
+        font-size: 14px;
+      }
+
+      .moves-header {
+        padding: 15px;
+        border-bottom: 1px solid var(--panel-border);
+        font-size: 16px;
+        font-weight: bold;
+      }
+
+      .moves-list-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px 15px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+
       .moves-list {
         list-style-type: none;
-        padding: 0;
-        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
       }
-      .moves-list li {
-        padding: 5px 10px;
-        border-bottom: 1px solid #ddd;
+
+      .move-item {
+        padding: 6px 10px;
+        background-color: var(--light-panel);
+        border-radius: 3px;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        width: fit-content;
       }
-      .moves-list li:nth-child(odd) {
-        background-color: #f0f0f0;
+
+      .move-number {
+        color: var(--muted-text);
+        margin-right: 8px;
+        min-width: 24px;
       }
-      .current-move {
-        background-color: #d4edda !important;
-        font-weight: bold;
+
+      .status-message {
+        padding: 8px 15px;
+        border-radius: 3px;
+        font-weight: 500;
+      }
+
+      .success {
+        background-color: var(--correct-move);
+        color: white;
+      }
+
+      .error {
+        background-color: var(--wrong-move);
+        color: white;
+      }
+
+      .info {
+        background-color: var(--highlight);
+        color: white;
+      }
+
+      .hint-box {
+        margin-top: 15px;
+        padding: 10px 15px;
+        background-color: rgba(76, 136, 199, 0.1);
+        border-left: 3px solid var(--highlight);
+        font-size: 14px;
+      }
+
+      .controls-group {
+        display: flex;
+        gap: 8px;
+      }
+
+      /* Theme the chessboard */
+      .white-1e1d7 {
+        background-color: var(--light-square);
+      }
+      .black-3c85d {
+        background-color: var(--dark-square);
+      }
+
+      /* Mobile and tablet responsive adjustments */
+      @media (max-width: 1024px) {
+        .app-container {
+          flex-direction: column;
+          height: auto;
+          min-height: 100vh;
+        }
+
+        .sidebar {
+          width: 100%;
+          min-width: 100%;
+          flex-direction: row;
+          flex-wrap: wrap;
+          border-right: none;
+          border-bottom: 1px solid var(--panel-border);
+        }
+
+        .panel {
+          min-width: 250px;
+          flex: 1;
+          border-bottom: none;
+          border-right: 1px solid var(--panel-border);
+        }
+
+        .main-content {
+          height: auto;
+          min-height: 0;
+        }
+
+        .board-container {
+          flex-direction: column;
+        }
+
+        .board-wrapper {
+          padding: 10px;
+        }
+
+        #board {
+          max-width: min(600px, 95vw);
+          max-height: min(600px, 95vw);
+        }
+
+        .move-history-area {
+          width: 100%;
+          height: 200px;
+          border-left: none;
+          border-top: 1px solid var(--panel-border);
+        }
+      }
+
+      /* Small mobile devices */
+      @media (max-width: 480px) {
+        .sidebar {
+          padding: 10px;
+        }
+
+        .panel {
+          min-width: 100%;
+          border-right: none;
+          border-bottom: 1px solid var(--panel-border);
+        }
+
+        .board-wrapper {
+          padding: 5px;
+        }
+
+        #board {
+          max-width: 100%;
+          max-height: 100vw;
+        }
+
+        .control-bar {
+          flex-direction: column;
+          gap: 10px;
+          height: auto;
+          padding: 10px;
+        }
+
+        .controls-group {
+          width: 100%;
+          justify-content: center;
+        }
+
+        .status-message {
+          width: 100%;
+          text-align: center;
+        }
+
+        .move-history-area {
+          height: 150px;
+        }
+
+        .difficulty-controls {
+          flex-wrap: wrap;
+        }
+
+        .difficulty-controls > div {
+          flex: 1;
+          min-width: 120px;
+        }
+      }
+
+      /* Ensure proper touch targets on mobile */
+      @media (hover: none) and (pointer: coarse) {
+        .button {
+          padding: 8px 16px;
+          min-height: 44px;
+        }
+
+        .toggle-switch {
+          min-height: 44px;
+        }
+
+        input[type="number"] {
+          min-height: 44px;
+        }
+      }
+
+      /* Animation for the turn indicator */
+      @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 rgba(76, 136, 199, 0.4); }
+        70% { box-shadow: 0 0 0 10px rgba(76, 136, 199, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(76, 136, 199, 0); }
+      }
+
+      .your-turn {
+        animation: pulse 2s infinite;
       }
     </style>
   </head>
   <body>
-    <div class="container">
-      <h2>♟️ Solve the Chess Puzzle</h2>
-      
-      <div class="rating-filter">
-        <h3>Puzzle Rating Filter</h3>
-        <div>
-          <label for="minRating">Min Rating:</label>
-          <input type="number" id="minRating" min="500" max="3000" value="800" step="100">
-          <label for="maxRating">Max Rating:</label>
-          <input type="number" id="maxRating" min="500" max="3000" value="2000" step="100">
-          <button id="applyFilter" class="button">Apply Filter</button>
+    <div class="app-container">
+      <div class="sidebar">
+        <div class="panel">
+          <div class="puzzle-info">
+            <div class="puzzle-icon">♟</div>
+            <div class="puzzle-details">
+              <h3>Puzzle <span class="puzzle-id" id="puzzleId"></span></h3>
+              <p>Rating: <span id="puzzleRating">loading...</span></p>
+              <p>Played <span id="puzzlePlays">0</span> times</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="panel rating-panel">
+          <div class="rating-indicator" id="playerRatingBadge">1500</div>
+          <div class="rating-label">Your Rating</div>
+        </div>
+
+        <div class="turn-indicator" id="turnIndicator">
+          <div class="turn-icon">♚</div>
+          <div class="turn-text">
+            <h3>Your turn</h3>
+            <p id="turnMessage">Find the best move.</p>
+          </div>
+        </div>
+        
+        <div class="panel themes-panel">
+          <div class="themes-title">
+            <span class="themes-icon">♙</span>
+            <span>Puzzle Themes</span>
+          </div>
+          <p class="themes-description">A bit of everything. You don't know what to expect, so you remain ready for anything! Just like in real games.</p>
+        </div>
+        
+        <div class="panel difficulty-panel">
+          <h3>Difficulty Settings</h3>
+          <div class="difficulty-controls">
+            <div>
+              <label for="minRating">Min:</label>
+              <input type="number" id="minRating" min="500" max="3000" value="800" step="100">
+            </div>
+            <div>
+              <label for="maxRating">Max:</label>
+              <input type="number" id="maxRating" min="500" max="3000" value="2000" step="100">
+            </div>
+            <button id="applyFilter" class="button">Apply</button>
+          </div>
+          
+          <div class="toggle-switch">
+            <input type="checkbox" id="nextPuzzleToggle">
+            <label class="toggle-slider" for="nextPuzzleToggle"></label>
+            <span class="toggle-label">Jump to next puzzle immediately</span>
+          </div>
         </div>
       </div>
       
-      <div class="game-container">
+      <div class="main-content">
         <div class="board-container">
-          <div id="board"></div>
+          <div class="board-wrapper">
+            <div id="board"></div>
+          </div>
+          
+          <div class="move-history-area">
+            <div class="moves-header">Move History</div>
+            <div class="moves-list-container">
+              <ul id="movesList" class="moves-list"></ul>
+              <div id="hint" class="hint-box" style="display: none;"></div>
+            </div>
+          </div>
         </div>
-        <div class="moves-container">
-          <h3>Move History</h3>
-          <ul id="movesList" class="moves-list"></ul>
+        
+        <div class="control-bar">
+          <div id="status" class="status-message info">Solve the puzzle!</div>
+          <div class="controls-group">
+            <button id="hintBtn" class="button">Get Hint</button>
+            <button id="resetBtn" class="button">Reset Puzzle</button>
+            <button id="nextPuzzle" class="button button-primary">Next Puzzle</button>
+          </div>
         </div>
-      </div>
-      
-      <div class="info-panel">
-        <p id="puzzleRating" style="font-weight: bold;"></p>
-        <p id="status"></p>
-        <p id="rating" style="font-weight: bold;">Current Rating: 1500</p>
-        <p id="hint" style="font-weight: bold;"></p>
-        <p id="currentPlayer" style="font-weight: bold;"></p>
-        <button id="hintBtn" class="button">Show Hint</button>
-        <button id="resetBtn" class="button">Reset Puzzle</button>
-        <button id="nextPuzzle" class="button">Next Puzzle</button>
       </div>
     </div>
 
     <script>
       let game, board, puzzleMoves, currentMoveIndex = 0, playerRating = 1500, puzzleRating;
-      let playerColor = 'w'; // Default player color (will be determined by puzzle)
+      let playerColor = null; // Will be determined based on puzzle
       let minRating = 800;   // Default minimum puzzle rating
       let maxRating = 2000;  // Default maximum puzzle rating
       let currentPuzzleFen; // Store the starting position of the current puzzle
       let moveHistory = []; // Array to store move history objects
+      let puzzleData = null; // Store complete puzzle data
+      let waitingForOpponent = false; // Flag to track if we're waiting for opponent move
+      let puzzleId = ""; // Store the puzzle ID
+      let puzzlePlays = 0; // Store the number of times the puzzle has been played
 
-      // Custom piece theme function to map chess.js piece names to your file naming convention
+      // Custom piece theme function
       function customPieceTheme(piece) {
-        // Convert piece codes like 'wP' to file names like 'pawn-white.png'
         const pieceType = piece.charAt(1).toLowerCase();
         const pieceColor = piece.charAt(0) === 'w' ? 'white' : 'black';
         
@@ -150,50 +638,85 @@
 
       async function loadPuzzle() {
         try {
+          // Reset the waiting flag
+          waitingForOpponent = false;
+          
+          // Update the status message
+          updateStatus("Loading puzzle...", "info");
+          
           // Update the URL to include rating filter parameters
           const res = await fetch(`/puzzle/random?minRating=${minRating}&maxRating=${maxRating}`);
-          const puzzle = await res.json();
-          puzzleMoves = puzzle.moves;
+          puzzleData = await res.json();
+          
+          puzzleMoves = puzzleData.moves;
           currentMoveIndex = 0;
-          puzzleRating = puzzle.rating;  // Rating of the puzzle
-          game = new Chess(puzzle.fen);
-          currentPuzzleFen = puzzle.fen; // Store starting position
+          puzzleRating = puzzleData.rating || Math.floor(Math.random() * (maxRating - minRating) + minRating);
+          puzzleId = puzzleData.id || generateRandomId();
+          puzzlePlays = puzzleData.plays || Math.floor(Math.random() * 300);
+          
+          game = new Chess(puzzleData.fen);
+          currentPuzzleFen = puzzleData.fen; // Store starting position
           
           // Clear move history
           moveHistory = [];
           updateMoveHistory();
           
-          // Display the current puzzle rating
-          document.getElementById('puzzleRating').innerText = `Puzzle Rating: ${puzzleRating}`;
+          // Display the puzzle info
+          document.getElementById('puzzleId').innerText = puzzleId;
+          document.getElementById('puzzleRating').innerText = puzzleRating;
+          document.getElementById('puzzlePlays').innerText = puzzlePlays;
           
-          // Determine player color based on whose turn it is in the puzzle
-          playerColor = game.turn();
+          // Calculate player color (similar to before)
+          if (puzzleMoves.length % 2 === 0) {
+            playerColor = game.turn() === 'w' ? 'b' : 'w';
+          } else {
+            playerColor = game.turn();
+          }
           
-          // Use the custom piece theme function
+          // Initialize board
           board = Chessboard('board', {
-            position: puzzle.fen,
+            position: puzzleData.fen,
             draggable: true,
             onDrop: onDrop,
-            pieceTheme: customPieceTheme
+            pieceTheme: customPieceTheme,
+            orientation: playerColor === 'w' ? 'white' : 'black'
           });
 
-          document.getElementById('status').innerText = "💡 Solve the puzzle!";
-          document.getElementById('hint').innerText = ""; // clear hint
-          updateCurrentPlayer();
+          updateStatus("Solve the puzzle!", "info");
+          document.getElementById('hint').style.display = 'none';
+          
+          updateTurnIndicator();
           
           // If it's not the player's turn initially, make the first move automatically
           if (game.turn() !== playerColor) {
             makeOpponentMove();
           }
+          
+          // Force board resize after rendering
+          window.dispatchEvent(new Event('resize'));
         } catch (error) {
           console.error("Error loading puzzle:", error);
-          document.getElementById('status').innerText = "Error loading puzzle. Please try again.";
+          updateStatus("Error loading puzzle. Please try again.", "error");
         }
+      }
+
+      function generateRandomId() {
+        const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+        let result = '';
+        for (let i = 0; i < 5; i++) {
+          result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
       }
 
       function onDrop(source, target) {
         // Only allow moves if it's the player's turn
         if (game.turn() !== playerColor) {
+          return 'snapback';
+        }
+        
+        // Check if we're already waiting for an opponent move
+        if (waitingForOpponent) {
           return 'snapback';
         }
         
@@ -211,17 +734,26 @@
           board.position(game.fen()); // Update board
           
           if (currentMoveIndex === puzzleMoves.length) {
-            document.getElementById('status').innerText = "✅ Puzzle solved!";
-            updateRating(true);  // Correct solution
+            updateStatus("Puzzle solved!", "success");
+            updateRating(true);
+            if (document.getElementById('nextPuzzleToggle').checked) {
+              setTimeout(loadPuzzle, 1500);
+            }
           } else {
-            // Make opponent's move after a short delay
-            setTimeout(makeOpponentMove, 500);
+            // Set waiting flag and make opponent's move after a short delay
+            waitingForOpponent = true;
+            updateStatus("Correct! Waiting for opponent...", "info");
+            updateTurnIndicator(false);
+            
+            // Use a slightly longer delay to make it more visible
+            setTimeout(function() {
+              makeOpponentMove();
+              waitingForOpponent = false;
+            }, 800);
           }
-          
-          updateCurrentPlayer();
         } else {
-          document.getElementById('status').innerText = "❌ Wrong move!";
-          updateRating(false);  // Wrong move
+          updateStatus("Wrong move!", "error");
+          updateRating(false);
           game.undo(); // Undo the incorrect move
           
           // Remove the last move from history since it was wrong
@@ -232,191 +764,188 @@
         }
       }
       
-      // Function to make the opponent's move automatically
       function makeOpponentMove() {
         if (currentMoveIndex < puzzleMoves.length) {
+          console.log("Making opponent move, index:", currentMoveIndex);
+          
           const nextMove = puzzleMoves[currentMoveIndex];
           const from = nextMove.slice(0, 2);
           const to = nextMove.slice(2, 4);
           
-          const move = game.move({ from: from, to: to, promotion: 'q' });
-          
-          // Add opponent's move to history
-          addMoveToHistory(move);
-          
-          board.position(game.fen());
-          currentMoveIndex++;
-          
-          updateCurrentPlayer();
-          
-          // Check if puzzle is solved after opponent's move
-          if (currentMoveIndex === puzzleMoves.length) {
-            document.getElementById('status').innerText = "✅ Puzzle solved!";
-            updateRating(true);
-          }
+          // Add a small delay to make the move more visible
+          setTimeout(() => {
+            const move = game.move({ from: from, to: to, promotion: 'q' });
+            
+            if (move) {
+              // Add opponent's move to history
+              addMoveToHistory(move);
+              
+              board.position(game.fen());
+              currentMoveIndex++;
+              
+              updateTurnIndicator(true);
+              
+              // Check if puzzle is solved after opponent's move
+              if (currentMoveIndex === puzzleMoves.length) {
+                updateStatus("Puzzle solved!", "success");
+                updateRating(true);
+                if (document.getElementById('nextPuzzleToggle').checked) {
+                  setTimeout(loadPuzzle, 1500);
+                }
+              } else {
+                updateStatus("Your turn!", "info");
+              }
+            } else {
+              console.error("Invalid opponent move:", from, to);
+              updateStatus("Error with opponent's move!", "error");
+            }
+          }, 300);
         }
       }
 
-      // Add move to history and update display
       function addMoveToHistory(move) {
         const moveNumber = Math.floor((moveHistory.length / 2) + 1);
         const isWhite = move.color === 'w';
         
-        // Get piece symbol
-        let pieceSymbol = '';
-        switch(move.piece) {
-          case 'p': pieceSymbol = ''; break;
-          case 'n': pieceSymbol = 'N'; break;
-          case 'b': pieceSymbol = 'B'; break;
-          case 'r': pieceSymbol = 'R'; break;
-          case 'q': pieceSymbol = 'Q'; break;
-          case 'k': pieceSymbol = 'K'; break;
-        }
-        
-        // Format the move in chess notation
-        let moveText = pieceSymbol + move.from + '-' + move.to;
-        
-        // Add capture symbol
-        if (move.captured) {
-          moveText += 'x';
-        }
-        
-        // Add check/checkmate symbol
-        if (move.san.includes('+')) {
-          moveText += '+';
-        } else if (move.san.includes('#')) {
-          moveText += '#';
-        }
-        
         moveHistory.push({
           number: moveNumber,
           white: isWhite,
-          notation: moveText,
           san: move.san
         });
         
         updateMoveHistory();
       }
       
-      // Update the move history display
       function updateMoveHistory() {
         const movesList = document.getElementById('movesList');
         movesList.innerHTML = '';
         
-        let currentMoveNumber = 1;
-        let moveListItem = null;
+        let currentMoveNumber = null;
+        let moveGroup = null;
         
         moveHistory.forEach((move, index) => {
+          // Start a new move pair if this is a white move
           if (move.white) {
-            // Start new move number for white moves
-            moveListItem = document.createElement('li');
-            moveListItem.innerHTML = `${move.number}. ${move.san} `;
-            movesList.appendChild(moveListItem);
+            currentMoveNumber = move.number;
+            moveGroup = document.createElement('li');
+            moveGroup.className = 'move-item';
+            moveGroup.innerHTML = `<span class="move-number">${move.number}.</span> ${move.san}`;
+            movesList.appendChild(moveGroup);
           } else {
-            // Add black move to the current move number
-            if (moveListItem) {
-              moveListItem.innerHTML += `${move.san}`;
+            // For black moves, append to the previous move group
+            if (moveGroup) {
+              moveGroup.innerHTML += ` ${move.san}`;
             }
           }
         });
         
-        // Scroll to the bottom of the moves list
-        movesList.scrollTop = movesList.scrollHeight;
+        // Scroll to the bottom to show latest moves
+        movesList.scrollIntoView({ behavior: 'smooth', block: 'end' });
       }
 
-      // Update current player turn
-      function updateCurrentPlayer() {
-        const turn = game.turn();  // 'w' for white, 'b' for black
-        const player = turn === 'w' ? 'White to move' : 'Black to move';
-        document.getElementById('currentPlayer').innerText = player;
+      function updateTurnIndicator(isPlayerTurn = null) {
+        const turnIndicator = document.getElementById('turnIndicator');
+        const turnIcon = turnIndicator.querySelector('.turn-icon');
+        const turnText = document.getElementById('turnMessage');
         
-        // Highlight if it's the player's turn or not
-        if (turn === playerColor) {
-          document.getElementById('currentPlayer').style.color = '#008000';  // Green if player's turn
+        if (isPlayerTurn === null) {
+          isPlayerTurn = game.turn() === playerColor;
+        }
+        
+        if (isPlayerTurn) {
+          turnIndicator.style.backgroundColor = 'var(--highlight)';
+          turnIcon.innerHTML = playerColor === 'w' ? '♔' : '♚';
+          turnText.innerHTML = 'Find the best move.';
+          turnIndicator.classList.add('your-turn');
         } else {
-          document.getElementById('currentPlayer').style.color = '#800000';  // Red if opponent's turn
+          turnIndicator.style.backgroundColor = 'var(--panel-bg)';
+          turnIcon.innerHTML = playerColor === 'w' ? '♚' : '♔';
+          turnText.innerHTML = 'Opponent is thinking...';
+          turnIndicator.classList.remove('your-turn');
         }
       }
 
-      // Rating System Update
+      function updateStatus(message, type) {
+        const statusElement = document.getElementById('status');
+        statusElement.className = `status-message ${type}`;
+        statusElement.innerHTML = message;
+      }
+
       function updateRating(correct) {
         if (correct) {
-          // Increase the rating (based on puzzle difficulty)
           const ratingChange = Math.floor(puzzleRating / 100);
           playerRating += ratingChange;
-          document.getElementById('status').innerText += ` (+${ratingChange} rating)`;
+          updateStatus(`Puzzle solved! (+${ratingChange} rating)`, "success");
         } else {
-          // Decrease the rating
-          playerRating -= 10;  // Decrease by 10 for incorrect moves
-          document.getElementById('status').innerText += " (-10 rating)";
+          playerRating -= 10;
+          updateStatus("Wrong move! (-10 rating)", "error");
         }
 
-        // Update the displayed rating
-        document.getElementById('rating').innerText = `Current Rating: ${playerRating}`;
+        document.getElementById('playerRatingBadge').innerText = playerRating;
       }
 
-      // Reset the current puzzle to initial position
       function resetPuzzle() {
+        waitingForOpponent = false;
         game = new Chess(currentPuzzleFen);
         board.position(game.fen());
         currentMoveIndex = 0;
         
-        // Clear move history
         moveHistory = [];
         updateMoveHistory();
         
-        document.getElementById('status').innerText = "💡 Puzzle reset! Try again.";
-        document.getElementById('hint').innerText = ""; // clear hint
-        updateCurrentPlayer();
+        updateStatus("Puzzle reset! Try again.", "info");
+        document.getElementById('hint').style.display = 'none';
         
-        // If it's not the player's turn initially, make the first move automatically
+        updateTurnIndicator();
+        
         if (game.turn() !== playerColor) {
           makeOpponentMove();
         }
       }
 
-      // Add Hint Button Logic
       document.getElementById('hintBtn').addEventListener('click', function () {
-        if (game.turn() === playerColor) {  // Only show hint when it's player's turn
+        if (game.turn() === playerColor) {
           const nextMove = puzzleMoves[currentMoveIndex];
           if (nextMove) {
             const source = nextMove.slice(0, 2);
             const target = nextMove.slice(2, 4);
-            // Display the hint as a string
-            document.getElementById('hint').innerText = `Hint: Move from ${source} to ${target}`;
-          } else {
-            document.getElementById('hint').innerText = "No hint available";
+            const hintElement = document.getElementById('hint');
+            hintElement.innerText = `Try moving from ${source} to ${target}`;
+            hintElement.style.display = 'block';
           }
         } else {
-          document.getElementById('hint').innerText = "Wait for opponent's move";
+          const hintElement = document.getElementById('hint');
+          hintElement.innerText = "Wait for opponent's move";
+          hintElement.style.display = 'block';
         }
       });
 
-      // Reset Button Logic
       document.getElementById('resetBtn').addEventListener('click', function() {
         resetPuzzle();
       });
 
-      // Next Puzzle Button Logic
       document.getElementById('nextPuzzle').addEventListener('click', function() {
         loadPuzzle();
       });
 
-      // Apply Filter Button Logic
       document.getElementById('applyFilter').addEventListener('click', function() {
         minRating = parseInt(document.getElementById('minRating').value);
         maxRating = parseInt(document.getElementById('maxRating').value);
         
-        // Validate the ranges
         if (minRating > maxRating) {
-          // Swap if min is greater than max
           [minRating, maxRating] = [maxRating, minRating];
           document.getElementById('minRating').value = minRating;
           document.getElementById('maxRating').value = maxRating;
         }
         
-        // Load a new puzzle with the selected rating range
         loadPuzzle();
+      });
+
+      // Handle window resize to maintain aspect ratio
+      window.addEventListener('resize', function() {
+        if (board) {
+          board.resize();
+        }
       });
 
       // Initialize with the first puzzle
