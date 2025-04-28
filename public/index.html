@@ -84,7 +84,6 @@
         display: flex;
         justify-content: center;
         align-items: center;
-        padding: 20px;
       }
 
       #board {
@@ -393,13 +392,6 @@
         color: white;
       }
 
-      .hint-box {
-        margin-top: 15px;
-        padding: 10px 15px;
-        background-color: rgba(76, 136, 199, 0.1);
-        border-left: 3px solid var(--highlight);
-        font-size: 14px;
-      }
 
       .controls-group {
         display: flex;
@@ -681,7 +673,6 @@
             <div class="moves-header">Move History</div>
             <div class="moves-list-container">
               <ul id="movesList" class="moves-list"></ul>
-              <div id="hint" class="hint-box" style="display: none;"></div>
             </div>
           </div>
         </div>
@@ -693,7 +684,6 @@
               <button id="prevMoveBtn" class="button disabled">Previous Move</button>
               <button id="latestMoveBtn" class="button disabled">Latest Move</button>
             </div>
-            <button id="hintBtn" class="button">Get Hint</button>
             <button id="resetBtn" class="button">Reset Puzzle</button>
             <button id="nextPuzzle" class="button button-primary">Next Puzzle</button>
           </div>
@@ -788,7 +778,6 @@ async function loadPuzzle() {
     setTimeout(initializeClickHandlers, 100);
 
     updateStatus("Solve the puzzle!", "info");
-    document.getElementById('hint').style.display = 'none';
     
     updateTurnIndicator();
     
@@ -1136,7 +1125,6 @@ function resetPuzzle() {
   updateMoveHistory();
   
   updateStatus("Puzzle reset! Try again.", "info");
-  document.getElementById('hint').style.display = 'none';
   
   updateTurnIndicator();
   updateNavigationButtons();
@@ -1268,29 +1256,29 @@ $(document).ready(function() {
     .appendTo('head');
 });
 
-document.getElementById('hintBtn').addEventListener('click', function () {
-  if (viewingHistoricalPosition) {
-    const hintElement = document.getElementById('hint');
-    hintElement.innerText = "Return to the latest position to get a hint";
-    hintElement.style.display = 'block';
-    return;
-  }
+// document.getElementById('hintBtn').addEventListener('click', function () {
+//   if (viewingHistoricalPosition) {
+//     const hintElement = document.getElementById('hint');
+//     hintElement.innerText = "Return to the latest position to get a hint";
+//     hintElement.style.display = 'block';
+//     return;
+//   }
   
-  if (game.turn() === playerColor) {
-    const nextMove = puzzleMoves[currentMoveIndex];
-    if (nextMove) {
-      const source = nextMove.slice(0, 2);
-      const target = nextMove.slice(2, 4);
-      const hintElement = document.getElementById('hint');
-      hintElement.innerText = `Try moving from ${source} to ${target}`;
-      hintElement.style.display = 'block';
-    }
-  } else {
-    const hintElement = document.getElementById('hint');
-    hintElement.innerText = "Wait for opponent's move";
-    hintElement.style.display = 'block';
-  }
-});
+//   if (game.turn() === playerColor) {
+//     const nextMove = puzzleMoves[currentMoveIndex];
+//     if (nextMove) {
+//       const source = nextMove.slice(0, 2);
+//       const target = nextMove.slice(2, 4);
+//       const hintElement = document.getElementById('hint');
+//       hintElement.innerText = `Try moving from ${source} to ${target}`;
+//       hintElement.style.display = 'block';
+//     }
+//   } else {
+//     const hintElement = document.getElementById('hint');
+//     hintElement.innerText = "Wait for opponent's move";
+//     hintElement.style.display = 'block';
+//   }
+// });
 
 document.getElementById('resetBtn').addEventListener('click', function() {
   resetPuzzle();
