@@ -618,370 +618,449 @@ function enableScroll() {
   document.body.style.overflow = 'auto';
 }
 
+let game, board, puzzleMoves, currentMoveIndex = 0, playerRating = 1500, puzzleRating;
+let playerColor = null; // Will be determined based on puzzle
+let minRating = 800;   // Default minimum puzzle rating
+let maxRating = 2000;  // Default maximum puzzle rating
+let currentPuzzleFen; // Store the starting position of the current puzzle
+let moveHistory = []; // Array to store move history objects
+let puzzleData = null; // Store complete puzzle data
+let waitingForOpponent = false; // Flag to track if we're waiting for opponent move
+let puzzleId = ""; // Store the puzzle ID
+let puzzlePlays = 0; // Store the number of times the puzzle has been played
+let selectedSquare = null; // For click-to-move: stores the first selected square
 
-      let game, board, puzzleMoves, currentMoveIndex = 0, playerRating = 1500, puzzleRating;
-      let playerColor = null; // Will be determined based on puzzle
-      let minRating = 800;   // Default minimum puzzle rating
-      let maxRating = 2000;  // Default maximum puzzle rating
-      let currentPuzzleFen; // Store the starting position of the current puzzle
-      let moveHistory = []; // Array to store move history objects
-      let puzzleData = null; // Store complete puzzle data
-      let waitingForOpponent = false; // Flag to track if we're waiting for opponent move
-      let puzzleId = ""; // Store the puzzle ID
-      let puzzlePlays = 0; // Store the number of times the puzzle has been played
+// Custom piece theme function
+function customPieceTheme(piece) {
+  const pieceType = piece.charAt(1).toLowerCase();
+  const pieceColor = piece.charAt(0) === 'w' ? 'white' : 'black';
+  
+  let pieceName;
+  switch(pieceType) {
+    case 'p': pieceName = 'pawn'; break;
+    case 'r': pieceName = 'rook'; break;
+    case 'n': pieceName = 'knight'; break;
+    case 'b': pieceName = 'bishop'; break;
+    case 'q': pieceName = 'queen'; break;
+    case 'k': pieceName = 'king'; break;
+    default: pieceName = pieceType;
+  }
+  
+  return `chess_pieces/${pieceName}-${pieceColor}.png`;
+}
 
-      const boardWrapper = document.getElementById('board');
+async function loadPuzzle() {
+  try {
+    // Reset the waiting flag and selected square
+    waitingForOpponent = false;
+    selectedSquare = null;
+    
+    // Update the status message
+    updateStatus("Loading puzzle...", "info");
+    
+    // Update the URL to include rating filter parameters
+    const res = await fetch(`/puzzle/random?minRating=${minRating}&maxRating=${maxRating}`);
+    puzzleData = await res.json();
+    
+    puzzleMoves = puzzleData.moves;
+    currentMoveIndex = 0;
+    puzzleRating = puzzleData.rating || Math.floor(Math.random() * (maxRating - minRating) + minRating);
+    puzzleId = puzzleData.id || generateRandomId();
+    puzzlePlays = puzzleData.plays || Math.floor(Math.random() * 300);
+    
+    game = new Chess(puzzleData.fen);
+    currentPuzzleFen = puzzleData.fen; // Store starting position
+    
+    // Clear move history
+    moveHistory = [];
+    updateMoveHistory();
+    
+    // Display the puzzle info
+    document.getElementById('puzzleId').innerText = puzzleId;
+    document.getElementById('puzzleRating').innerText = puzzleRating;
+    document.getElementById('puzzlePlays').innerText = puzzlePlays;
+    
+    // Calculate player color
+    if (puzzleMoves.length % 2 === 0) {
+      playerColor = game.turn() === 'w' ? 'b' : 'w';
+    } else {
+      playerColor = game.turn();
+    }
+    
+    // Create the board with draggable set to FALSE
+    board = Chessboard('board', {
+      position: puzzleData.fen,
+      draggable: false, // Disable drag and drop
+      pieceTheme: customPieceTheme,
+      orientation: playerColor === 'w' ? 'white' : 'black'
+    });
 
+    // Set up click handlers after the board is rendered
+    setTimeout(initializeClickHandlers, 100);
 
+    updateStatus("Solve the puzzle!", "info");
+    document.getElementById('hint').style.display = 'none';
+    
+    updateTurnIndicator();
+    
+    // If it's not the player's turn initially, make the first move automatically
+    if (game.turn() !== playerColor) {
+      makeOpponentMove();
+    }
+    
+    // Force board resize after rendering
+    window.dispatchEvent(new Event('resize'));
+  } catch (error) {
+    console.error("Error loading puzzle:", error);
+    updateStatus("Error loading puzzle. Please try again.", "error");
+  }
+}
 
-      // Custom piece theme function
-      function customPieceTheme(piece) {
-        const pieceType = piece.charAt(1).toLowerCase();
-        const pieceColor = piece.charAt(0) === 'w' ? 'white' : 'black';
-        
-        let pieceName;
-        switch(pieceType) {
-          case 'p': pieceName = 'pawn'; break;
-          case 'r': pieceName = 'rook'; break;
-          case 'n': pieceName = 'knight'; break;
-          case 'b': pieceName = 'bishop'; break;
-          case 'q': pieceName = 'queen'; break;
-          case 'k': pieceName = 'king'; break;
-          default: pieceName = pieceType;
-        }
-        
-        return `chess_pieces/${pieceName}-${pieceColor}.png`;
-      }
+function initializeClickHandlers() {
+  // Remove any existing click handlers
+  $('.square-55d63').off('click');
+  
+  // Add new click handlers to all squares
+  $('.square-55d63').on('click', handleSquareClick);
+  
+  console.log("Click handlers initialized");
+}
 
-      async function loadPuzzle() {
-        try {
-          // Reset the waiting flag
-          waitingForOpponent = false;
-          
-          // Update the status message
-          updateStatus("Loading puzzle...", "info");
-          
-          // Update the URL to include rating filter parameters
-          const res = await fetch(`/puzzle/random?minRating=${minRating}&maxRating=${maxRating}`);
-          puzzleData = await res.json();
-          
-          puzzleMoves = puzzleData.moves;
-          currentMoveIndex = 0;
-          puzzleRating = puzzleData.rating || Math.floor(Math.random() * (maxRating - minRating) + minRating);
-          puzzleId = puzzleData.id || generateRandomId();
-          puzzlePlays = puzzleData.plays || Math.floor(Math.random() * 300);
-          
-          game = new Chess(puzzleData.fen);
-          currentPuzzleFen = puzzleData.fen; // Store starting position
-          
-          // Clear move history
-          moveHistory = [];
-          updateMoveHistory();
-          
-          // Display the puzzle info
-          document.getElementById('puzzleId').innerText = puzzleId;
-          document.getElementById('puzzleRating').innerText = puzzleRating;
-          document.getElementById('puzzlePlays').innerText = puzzlePlays;
-          
-          // Calculate player color (similar to before)
-          if (puzzleMoves.length % 2 === 0) {
-            playerColor = game.turn() === 'w' ? 'b' : 'w';
-          } else {
-            playerColor = game.turn();
-          }
-          
-          // Initialize board
-          board = Chessboard('board', {
-            position: puzzleData.fen,
-            draggable: true,
-            onDrop: onDrop,
-            pieceTheme: customPieceTheme,
-            orientation: playerColor === 'w' ? 'white' : 'black'
-          });
+function handleSquareClick() {
+  // Only allow moves if it's the player's turn and not waiting for opponent
+  if (game.turn() !== playerColor || waitingForOpponent) {
+    return;
+  }
 
-          updateStatus("Solve the puzzle!", "info");
-          document.getElementById('hint').style.display = 'none';
-          
-          updateTurnIndicator();
-          
-          // If it's not the player's turn initially, make the first move automatically
-          if (game.turn() !== playerColor) {
-            makeOpponentMove();
-          }
-          
-          // Force board resize after rendering
-          window.dispatchEvent(new Event('resize'));
-        } catch (error) {
-          console.error("Error loading puzzle:", error);
-          updateStatus("Error loading puzzle. Please try again.", "error");
-        }
-      }
+  const square = $(this).data('square');
+  if (!square) return;
 
-      // Scroll control during piece drag
-const boardElement = document.getElementById('board');
+  console.log("Square clicked:", square);
 
-// Disable scroll when dragging a piece
-boardElement.addEventListener('mousedown', disableScroll);
-boardElement.addEventListener('touchstart', disableScroll);
+  // Clear any previously highlighted squares
+  $('.square-55d63').removeClass('highlight-square highlight-target');
 
-// Enable scroll after drag ends
-boardElement.addEventListener('mouseup', enableScroll);
-boardElement.addEventListener('touchend', enableScroll);
-
-// Also enable scroll if mouse leaves the board
-boardElement.addEventListener('mouseleave', enableScroll);
-
-
-      function generateRandomId() {
-        const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-        let result = '';
-        for (let i = 0; i < 5; i++) {
-          result += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return result;
-      }
-
-      function onDrop(source, target) {
-        // Only allow moves if it's the player's turn
-        if (game.turn() !== playerColor) {
-          return 'snapback';
-        }
-        
-        // Check if we're already waiting for an opponent move
-        if (waitingForOpponent) {
-          return 'snapback';
-        }
-        
-        const move = game.move({ from: source, to: target, promotion: 'q' });
-        if (!move) return 'snapback';
-
-        // Add move to history
-        addMoveToHistory(move);
-
-        const expected = puzzleMoves[currentMoveIndex];
-        const played = move.from + move.to;
-
-        if (played === expected) {
-          currentMoveIndex++;
-          board.position(game.fen()); // Update board
-          
-          if (currentMoveIndex === puzzleMoves.length) {
-            updateStatus("Puzzle solved!", "success");
-            updateRating(true);
-            if (document.getElementById('nextPuzzleToggle').checked) {
-              setTimeout(loadPuzzle, 1500);
-            }
-          } else {
-            // Set waiting flag and make opponent's move after a short delay
-            waitingForOpponent = true;
-            updateStatus("Correct! Waiting for opponent...", "info");
-            updateTurnIndicator(false);
-            
-            // Use a slightly longer delay to make it more visible
-            setTimeout(function() {
-              makeOpponentMove();
-              waitingForOpponent = false;
-            }, 800);
-          }
-        } else {
-          updateStatus("Wrong move!", "error");
-          updateRating(false);
-          game.undo(); // Undo the incorrect move
-          
-          // Remove the last move from history since it was wrong
-          moveHistory.pop();
-          updateMoveHistory();
-          
-          return 'snapback';
-        }
-      }
+  if (selectedSquare === null) {
+    // First click - selecting a piece
+    const piece = game.get(square);
+    
+    // Check if square contains player's piece
+    if (piece && piece.color === playerColor) {
+      selectedSquare = square;
+      console.log("Piece selected:", square);
       
-      function makeOpponentMove() {
-        if (currentMoveIndex < puzzleMoves.length) {
-          console.log("Making opponent move, index:", currentMoveIndex);
-          
-          const nextMove = puzzleMoves[currentMoveIndex];
-          const from = nextMove.slice(0, 2);
-          const to = nextMove.slice(2, 4);
-          
-          // Add a small delay to make the move more visible
-          setTimeout(() => {
-            const move = game.move({ from: from, to: to, promotion: 'q' });
-            
-            if (move) {
-              // Add opponent's move to history
-              addMoveToHistory(move);
-              
-              board.position(game.fen());
-              currentMoveIndex++;
-              
-              updateTurnIndicator(true);
-              
-              // Check if puzzle is solved after opponent's move
-              if (currentMoveIndex === puzzleMoves.length) {
-                updateStatus("Puzzle solved!", "success");
-                updateRating(true);
-                if (document.getElementById('nextPuzzleToggle').checked) {
-                  setTimeout(loadPuzzle, 1500);
-                }
-              } else {
-                updateStatus("Your turn!", "info");
-              }
-            } else {
-              console.error("Invalid opponent move:", from, to);
-              updateStatus("Error with opponent's move!", "error");
-            }
-          }, 300);
-        }
-      }
-
-      function addMoveToHistory(move) {
-        const moveNumber = Math.floor((moveHistory.length / 2) + 1);
-        const isWhite = move.color === 'w';
-        
-        moveHistory.push({
-          number: moveNumber,
-          white: isWhite,
-          san: move.san
-        });
-        
-        updateMoveHistory();
-      }
+      // Highlight the selected square
+      $(`[data-square="${square}"]`).addClass('highlight-square');
       
-      function updateMoveHistory() {
-        const movesList = document.getElementById('movesList');
-        movesList.innerHTML = '';
-        
-        let currentMoveNumber = null;
-        let moveGroup = null;
-        
-        moveHistory.forEach((move, index) => {
-          // Start a new move pair if this is a white move
-          if (move.white) {
-            currentMoveNumber = move.number;
-            moveGroup = document.createElement('li');
-            moveGroup.className = 'move-item';
-            moveGroup.innerHTML = `<span class="move-number">${move.number}.</span> ${move.san}`;
-            movesList.appendChild(moveGroup);
-          } else {
-            // For black moves, append to the previous move group
-            if (moveGroup) {
-              moveGroup.innerHTML += ` ${move.san}`;
-            }
-          }
-        });
-        
-        // Scroll to the bottom to show latest moves
-        movesList.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      // Highlight legal moves
+      const moves = game.moves({ square: square, verbose: true });
+      console.log("Legal moves:", moves);
+      for (let move of moves) {
+        $(`[data-square="${move.to}"]`).addClass('highlight-target');
       }
+    }
+  } else {
+    // Second click - target square for move
+    console.log("Target square:", square);
+    
+    if (square === selectedSquare) {
+      // Clicking the same square again deselects it
+      selectedSquare = null;
+      console.log("Piece deselected");
+      return;
+    }
 
-      function updateTurnIndicator(isPlayerTurn = null) {
-        const turnIndicator = document.getElementById('turnIndicator');
-        const turnIcon = turnIndicator.querySelector('.turn-icon');
-        const turnText = document.getElementById('turnMessage');
-        
-        if (isPlayerTurn === null) {
-          isPlayerTurn = game.turn() === playerColor;
-        }
-        
-        if (isPlayerTurn) {
-          turnIndicator.style.backgroundColor = 'var(--highlight)';
-          turnIcon.innerHTML = playerColor === 'w' ? '♔' : '♚';
-          turnText.innerHTML = 'Find the best move.';
-          turnIndicator.classList.add('your-turn');
-        } else {
-          turnIndicator.style.backgroundColor = 'var(--panel-bg)';
-          turnIcon.innerHTML = playerColor === 'w' ? '♚' : '♔';
-          turnText.innerHTML = 'Opponent is thinking...';
-          turnIndicator.classList.remove('your-turn');
-        }
+    // Try to make the move
+    const move = game.move({
+      from: selectedSquare,
+      to: square,
+      promotion: 'q' // Always promote to queen for simplicity
+    });
+
+    // Reset selected square regardless of move validity
+    selectedSquare = null;
+    
+    if (move === null) {
+      // Invalid move
+      console.log("Invalid move");
+      return;
+    }
+
+    console.log("Move made:", move);
+    
+    // Valid move made - update board and process
+    board.position(game.fen());
+    
+    // Process the move
+    processPlayerMove(move);
+  }
+}
+
+function processPlayerMove(move) {
+  // Add move to history
+  addMoveToHistory(move);
+
+  const expected = puzzleMoves[currentMoveIndex];
+  const played = move.from + move.to;
+
+  if (played === expected) {
+    currentMoveIndex++;
+    
+    if (currentMoveIndex === puzzleMoves.length) {
+      updateStatus("Puzzle solved!", "success");
+      updateRating(true);
+      if (document.getElementById('nextPuzzleToggle').checked) {
+        setTimeout(loadPuzzle, 1500);
       }
-
-      function updateStatus(message, type) {
-        const statusElement = document.getElementById('status');
-        statusElement.className = `status-message ${type}`;
-        statusElement.innerHTML = message;
-      }
-
-      function updateRating(correct) {
-        if (correct) {
-          const ratingChange = Math.floor(puzzleRating / 100);
-          playerRating += ratingChange;
-          updateStatus(`Puzzle solved! (+${ratingChange} rating)`, "success");
-        } else {
-          playerRating -= 10;
-          updateStatus("Wrong move! (-10 rating)", "error");
-        }
-
-        document.getElementById('playerRatingBadge').innerText = playerRating;
-      }
-
-      function resetPuzzle() {
+    } else {
+      // Set waiting flag and make opponent's move after a short delay
+      waitingForOpponent = true;
+      updateStatus("Correct! Waiting for opponent...", "info");
+      updateTurnIndicator(false);
+      
+      // Use a slightly longer delay to make it more visible
+      setTimeout(function() {
+        makeOpponentMove();
         waitingForOpponent = false;
-        game = new Chess(currentPuzzleFen);
-        board.position(game.fen());
-        currentMoveIndex = 0;
-        
-        moveHistory = [];
-        updateMoveHistory();
-        
-        updateStatus("Puzzle reset! Try again.", "info");
-        document.getElementById('hint').style.display = 'none';
-        
-        updateTurnIndicator();
-        
-        if (game.turn() !== playerColor) {
-          makeOpponentMove();
-        }
-      }
+      }, 800);
+    }
+  } else {
+    updateStatus("Wrong move!", "error");
+    updateRating(false);
+    game.undo(); // Undo the incorrect move
+    
+    // Remove the last move from history since it was wrong
+    moveHistory.pop();
+    updateMoveHistory();
+    
+    // Update board to reflect the undo
+    board.position(game.fen());
+  }
+}
 
-      document.getElementById('hintBtn').addEventListener('click', function () {
-        if (game.turn() === playerColor) {
-          const nextMove = puzzleMoves[currentMoveIndex];
-          if (nextMove) {
-            const source = nextMove.slice(0, 2);
-            const target = nextMove.slice(2, 4);
-            const hintElement = document.getElementById('hint');
-            hintElement.innerText = `Try moving from ${source} to ${target}`;
-            hintElement.style.display = 'block';
+function generateRandomId() {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < 5; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+function makeOpponentMove() {
+  if (currentMoveIndex < puzzleMoves.length) {
+    console.log("Making opponent move, index:", currentMoveIndex);
+    
+    const nextMove = puzzleMoves[currentMoveIndex];
+    const from = nextMove.slice(0, 2);
+    const to = nextMove.slice(2, 4);
+    
+    // Add a small delay to make the move more visible
+    setTimeout(() => {
+      const move = game.move({ from: from, to: to, promotion: 'q' });
+      
+      if (move) {
+        // Add opponent's move to history
+        addMoveToHistory(move);
+        
+        board.position(game.fen());
+        currentMoveIndex++;
+        
+        updateTurnIndicator(true);
+        
+        // Check if puzzle is solved after opponent's move
+        if (currentMoveIndex === puzzleMoves.length) {
+          updateStatus("Puzzle solved!", "success");
+          updateRating(true);
+          if (document.getElementById('nextPuzzleToggle').checked) {
+            setTimeout(loadPuzzle, 1500);
           }
         } else {
-          const hintElement = document.getElementById('hint');
-          hintElement.innerText = "Wait for opponent's move";
-          hintElement.style.display = 'block';
+          updateStatus("Your turn!", "info");
         }
-      });
+      } else {
+        console.error("Invalid opponent move:", from, to);
+        updateStatus("Error with opponent's move!", "error");
+      }
+    }, 300);
+  }
+}
 
-      document.getElementById('resetBtn').addEventListener('click', function() {
-        resetPuzzle();
-      });
+function addMoveToHistory(move) {
+  const moveNumber = Math.floor((moveHistory.length / 2) + 1);
+  const isWhite = move.color === 'w';
+  
+  moveHistory.push({
+    number: moveNumber,
+    white: isWhite,
+    san: move.san
+  });
+  
+  updateMoveHistory();
+}
 
-      document.getElementById('nextPuzzle').addEventListener('click', function() {
-        loadPuzzle();
-      });
+function updateMoveHistory() {
+  const movesList = document.getElementById('movesList');
+  movesList.innerHTML = '';
+  
+  let currentMoveNumber = null;
+  let moveGroup = null;
+  
+  moveHistory.forEach((move, index) => {
+    // Start a new move pair if this is a white move
+    if (move.white) {
+      currentMoveNumber = move.number;
+      moveGroup = document.createElement('li');
+      moveGroup.className = 'move-item';
+      moveGroup.innerHTML = `<span class="move-number">${move.number}.</span> ${move.san}`;
+      movesList.appendChild(moveGroup);
+    } else {
+      // For black moves, append to the previous move group
+      if (moveGroup) {
+        moveGroup.innerHTML += ` ${move.san}`;
+      }
+    }
+  });
+  
+  // Scroll to the bottom to show latest moves
+  const movesContainer = document.querySelector('.moves-list-container');
+  if (movesContainer.scrollHeight > movesContainer.clientHeight) {
+    movesContainer.scrollTop = movesContainer.scrollHeight;
+  }
+}
 
-      document.getElementById('applyFilter').addEventListener('click', function() {
-        minRating = parseInt(document.getElementById('minRating').value);
-        maxRating = parseInt(document.getElementById('maxRating').value);
-        
-        if (minRating > maxRating) {
-          [minRating, maxRating] = [maxRating, minRating];
-          document.getElementById('minRating').value = minRating;
-          document.getElementById('maxRating').value = maxRating;
-        }
-        
-        loadPuzzle();
-      });
+function updateTurnIndicator(isPlayerTurn = null) {
+  const turnIndicator = document.getElementById('turnIndicator');
+  const turnIcon = turnIndicator.querySelector('.turn-icon');
+  const turnText = document.getElementById('turnMessage');
+  
+  if (isPlayerTurn === null) {
+    isPlayerTurn = game.turn() === playerColor;
+  }
+  
+  if (isPlayerTurn) {
+    turnIndicator.style.backgroundColor = 'var(--highlight)';
+    turnIcon.innerHTML = playerColor === 'w' ? '♔' : '♚';
+    turnText.innerHTML = 'Find the best move.';
+    turnIndicator.classList.add('your-turn');
+  } else {
+    turnIndicator.style.backgroundColor = 'var(--panel-bg)';
+    turnIcon.innerHTML = playerColor === 'w' ? '♚' : '♔';
+    turnText.innerHTML = 'Opponent is thinking...';
+    turnIndicator.classList.remove('your-turn');
+  }
+}
 
-      // Handle window resize to maintain aspect ratio
-      window.addEventListener('resize', function() {
-        if (board) {
-          board.resize();
-        }
-      });
+function updateStatus(message, type) {
+  const statusElement = document.getElementById('status');
+  statusElement.className = `status-message ${type}`;
+  statusElement.innerHTML = message;
+}
 
-      // Initialize with the first puzzle
-      loadPuzzle();
+function updateRating(correct) {
+  if (correct) {
+    const ratingChange = Math.floor(puzzleRating / 100);
+    playerRating += ratingChange;
+    updateStatus(`Puzzle solved! (+${ratingChange} rating)`, "success");
+  } else {
+    playerRating -= 10;
+    updateStatus("Wrong move! (-10 rating)", "error");
+  }
+
+  document.getElementById('playerRatingBadge').innerText = playerRating;
+}
+
+function resetPuzzle() {
+  waitingForOpponent = false;
+  selectedSquare = null;
+  game = new Chess(currentPuzzleFen);
+  board.position(game.fen());
+  currentMoveIndex = 0;
+  
+  // Clear any highlighted squares
+  $('.square-55d63').removeClass('highlight-square highlight-target');
+  
+  moveHistory = [];
+  updateMoveHistory();
+  
+  updateStatus("Puzzle reset! Try again.", "info");
+  document.getElementById('hint').style.display = 'none';
+  
+  updateTurnIndicator();
+  
+  if (game.turn() !== playerColor) {
+    makeOpponentMove();
+  }
+}
+
+// Add CSS for highlighting squares
+$(document).ready(function() {
+  $('<style>')
+    .prop('type', 'text/css')
+    .html(`
+      .highlight-square {
+        box-shadow: inset 0 0 3px 3px #ffff00;
+      }
+      .highlight-target {
+        box-shadow: inset 0 0 3px 3px rgba(0, 255, 0, 0.5);
+      }
+    `)
+    .appendTo('head');
+});
+
+document.getElementById('hintBtn').addEventListener('click', function () {
+  if (game.turn() === playerColor) {
+    const nextMove = puzzleMoves[currentMoveIndex];
+    if (nextMove) {
+      const source = nextMove.slice(0, 2);
+      const target = nextMove.slice(2, 4);
+      const hintElement = document.getElementById('hint');
+      hintElement.innerText = `Try moving from ${source} to ${target}`;
+      hintElement.style.display = 'block';
+    }
+  } else {
+    const hintElement = document.getElementById('hint');
+    hintElement.innerText = "Wait for opponent's move";
+    hintElement.style.display = 'block';
+  }
+});
+
+document.getElementById('resetBtn').addEventListener('click', function() {
+  resetPuzzle();
+});
+
+document.getElementById('nextPuzzle').addEventListener('click', function() {
+  loadPuzzle();
+});
+
+document.getElementById('applyFilter').addEventListener('click', function() {
+  minRating = parseInt(document.getElementById('minRating').value);
+  maxRating = parseInt(document.getElementById('maxRating').value);
+  
+  if (minRating > maxRating) {
+    [minRating, maxRating] = [maxRating, minRating];
+    document.getElementById('minRating').value = minRating;
+    document.getElementById('maxRating').value = maxRating;
+  }
+  
+  loadPuzzle();
+});
+
+// Handle window resize to maintain aspect ratio
+window.addEventListener('resize', function() {
+  if (board) {
+    board.resize();
+    
+    // Re-initialize click handlers after resize
+    setTimeout(initializeClickHandlers, 100);
+  }
+});
+
+// Initialize with the first puzzle
+$(document).ready(function() {
+  loadPuzzle();
+});
+
     </script>
   </body>
 </html>
