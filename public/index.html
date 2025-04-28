@@ -420,6 +420,50 @@
         background-color: var(--dark-square);
       }
 
+      .move-source::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(255, 255, 0, 0.15);
+        pointer-events: none;
+      }
+
+      .move-target::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 255, 0, 0.15);
+        pointer-events: none;
+      }
+
+      .checkmate-king {
+        position: relative;
+      }
+
+      .checkmate-king::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(255, 0, 0, 0.3);
+        pointer-events: none;
+        animation: pulse-red 2s infinite;
+      }
+
+      @keyframes pulse-red {
+        0% { background-color: rgba(255, 0, 0, 0.3); }
+        50% { background-color: rgba(255, 0, 0, 0.5); }
+        100% { background-color: rgba(255, 0, 0, 0.3); }
+      }
+
       /* Mobile and tablet responsive adjustments */
       @media (max-width: 1024px) {
         .app-container {
@@ -658,7 +702,6 @@
     </div>
 
     <script>
-
 function disableScroll() {
   document.body.style.overflow = 'hidden';
 }
@@ -668,20 +711,20 @@ function enableScroll() {
 }
 
 let game, board, puzzleMoves, currentMoveIndex = 0, playerRating = 1500, puzzleRating;
-let playerColor = null; // Will be determined based on puzzle
-let minRating = 800;   // Default minimum puzzle rating
-let maxRating = 2000;  // Default maximum puzzle rating
-let currentPuzzleFen; // Store the starting position of the current puzzle
-let moveHistory = []; // Array to store move history objects
-let waitingForOpponent = false; // Flag to track if we're waiting for opponent move
-let puzzleId = ""; // Store the puzzle ID
-let puzzlePlays = 0; // Store the number of times the puzzle has been played
-let selectedSquare = null; // For click-to-move: stores the first selected square
-let viewingHistoricalPosition = false; // Flag to track if we're viewing a historical position
-let currentHistoryIndex = 0; // Track which move we're viewing in history mode
-let positionHistory = []; // Store FEN strings for each position
+let playerColor = null;
+let minRating = 800;
+let maxRating = 2000;
+let currentPuzzleFen;
+let moveHistory = [];
+let waitingForOpponent = false;
+let puzzleId = "";
+let puzzlePlays = 0;
+let selectedSquare = null;
+let viewingHistoricalPosition = false;
+let currentHistoryIndex = 0;
+let positionHistory = [];
+let lastMove = null;
 
-// Custom piece theme function
 function customPieceTheme(piece) {
   const pieceType = piece.charAt(1).toLowerCase();
   const pieceColor = piece.charAt(0) === 'w' ? 'white' : 'black';
@@ -702,16 +745,13 @@ function customPieceTheme(piece) {
 
 async function loadPuzzle() {
   try {
-    // Reset the waiting flag and selected square
     waitingForOpponent = false;
     selectedSquare = null;
     viewingHistoricalPosition = false;
     currentHistoryIndex = 0;
     
-    // Update the status message
     updateStatus("Loading puzzle...", "info");
     
-    // Update the URL to include rating filter parameters
     const res = await fetch(`/puzzle/random?minRating=${minRating}&maxRating=${maxRating}`);
     puzzleData = await res.json();
     
@@ -722,34 +762,29 @@ async function loadPuzzle() {
     puzzlePlays = puzzleData.plays || Math.floor(Math.random() * 300);
     
     game = new Chess(puzzleData.fen);
-    currentPuzzleFen = puzzleData.fen; // Store starting position
+    currentPuzzleFen = puzzleData.fen;
     
-    // Clear move history and position history
     moveHistory = [];
-    positionHistory = [puzzleData.fen]; // Store initial position
+    positionHistory = [puzzleData.fen];
     updateMoveHistory();
     
-    // Display the puzzle info
     document.getElementById('puzzleId').innerText = puzzleId;
     document.getElementById('puzzleRating').innerText = puzzleRating;
     document.getElementById('puzzlePlays').innerText = puzzlePlays;
     
-    // Calculate player color
     if (puzzleMoves.length % 2 === 0) {
       playerColor = game.turn() === 'w' ? 'b' : 'w';
     } else {
       playerColor = game.turn();
     }
     
-    // Create the board with draggable set to FALSE
     board = Chessboard('board', {
       position: puzzleData.fen,
-      draggable: false, // Disable drag and drop
+      draggable: false,
       pieceTheme: customPieceTheme,
       orientation: playerColor === 'w' ? 'white' : 'black'
     });
 
-    // Set up click handlers after the board is rendered
     setTimeout(initializeClickHandlers, 100);
 
     updateStatus("Solve the puzzle!", "info");
@@ -757,15 +792,12 @@ async function loadPuzzle() {
     
     updateTurnIndicator();
     
-    // If it's not the player's turn initially, make the first move automatically
     if (game.turn() !== playerColor) {
       makeOpponentMove();
     }
     
-    // Update navigation buttons
     updateNavigationButtons();
     
-    // Force board resize after rendering
     window.dispatchEvent(new Event('resize'));
   } catch (error) {
     console.error("Error loading puzzle:", error);
@@ -774,22 +806,16 @@ async function loadPuzzle() {
 }
 
 function initializeClickHandlers() {
-  // Remove any existing click handlers
   $('.square-55d63').off('click');
-  
-  // Add new click handlers to all squares
   $('.square-55d63').on('click', handleSquareClick);
-  
   console.log("Click handlers initialized");
 }
 
 function handleSquareClick() {
-  // If viewing historical position, don't allow moves
   if (viewingHistoricalPosition) {
     return;
   }
   
-  // Only allow moves if it's the player's turn and not waiting for opponent
   if (game.turn() !== playerColor || waitingForOpponent) {
     return;
   }
@@ -799,22 +825,17 @@ function handleSquareClick() {
 
   console.log("Square clicked:", square);
 
-  // Clear any previously highlighted squares
   $('.square-55d63').removeClass('highlight-square highlight-target');
 
   if (selectedSquare === null) {
-    // First click - selecting a piece
     const piece = game.get(square);
     
-    // Check if square contains player's piece
     if (piece && piece.color === playerColor) {
       selectedSquare = square;
       console.log("Piece selected:", square);
       
-      // Highlight the selected square
       $(`[data-square="${square}"]`).addClass('highlight-square');
       
-      // Highlight legal moves
       const moves = game.moves({ square: square, verbose: true });
       console.log("Legal moves:", moves);
       for (let move of moves) {
@@ -822,47 +843,40 @@ function handleSquareClick() {
       }
     }
   } else {
-    // Second click - target square for move
     console.log("Target square:", square);
     
     if (square === selectedSquare) {
-      // Clicking the same square again deselects it
       selectedSquare = null;
       console.log("Piece deselected");
       return;
     }
 
-    // Try to make the move
     const move = game.move({
       from: selectedSquare,
       to: square,
-      promotion: 'q' // Always promote to queen for simplicity
+      promotion: 'q'
     });
 
-    // Reset selected square regardless of move validity
     selectedSquare = null;
     
     if (move === null) {
-      // Invalid move
       console.log("Invalid move");
       return;
     }
 
     console.log("Move made:", move);
     
-    // Valid move made - update board and process
     board.position(game.fen());
     
-    // Process the move
     processPlayerMove(move);
   }
 }
 
 function processPlayerMove(move) {
-  // Add move to history
+  clearMoveHighlights();
+  
   addMoveToHistory(move);
 
-  // Store the position after the move
   positionHistory.push(game.fen());
   currentHistoryIndex = positionHistory.length - 1;
 
@@ -870,6 +884,12 @@ function processPlayerMove(move) {
   const played = move.from + move.to;
 
   if (played === expected) {
+    highlightMove(move.from, move.to);
+    
+    if (game.in_checkmate()) {
+      highlightCheckmateKing();
+    }
+    
     currentMoveIndex++;
     
     if (currentMoveIndex === puzzleMoves.length) {
@@ -879,12 +899,10 @@ function processPlayerMove(move) {
         setTimeout(loadPuzzle, 1500);
       }
     } else {
-      // Set waiting flag and make opponent's move after a short delay
       waitingForOpponent = true;
       updateStatus("Correct! Waiting for opponent...", "info");
       updateTurnIndicator(false);
       
-      // Use a slightly longer delay to make it more visible
       setTimeout(function() {
         makeOpponentMove();
         waitingForOpponent = false;
@@ -893,20 +911,105 @@ function processPlayerMove(move) {
   } else {
     updateStatus("Wrong move!", "error");
     updateRating(false);
-    game.undo(); // Undo the incorrect move
+    game.undo();
     
-    // Remove the last move from history since it was wrong
     moveHistory.pop();
     positionHistory.pop();
     currentHistoryIndex = positionHistory.length - 1;
     updateMoveHistory();
     
-    // Update board to reflect the undo
     board.position(game.fen());
   }
   
-  // Update navigation buttons
   updateNavigationButtons();
+}
+
+function makeOpponentMove() {
+  if (currentMoveIndex < puzzleMoves.length) {
+    const nextMove = puzzleMoves[currentMoveIndex];
+    const from = nextMove.slice(0, 2);
+    const to = nextMove.slice(2, 4);
+    
+    setTimeout(() => {
+      clearMoveHighlights();
+      
+      const move = game.move({ from: from, to: to, promotion: 'q' });
+      
+      if (move) {
+        highlightMove(from, to);
+        
+        if (game.in_checkmate()) {
+          highlightCheckmateKing();
+        }
+        
+        addMoveToHistory(move);
+        
+        positionHistory.push(game.fen());
+        currentHistoryIndex = positionHistory.length - 1;
+        
+        board.position(game.fen());
+        currentMoveIndex++;
+        
+        updateTurnIndicator(true);
+        
+        if (currentMoveIndex === puzzleMoves.length) {
+          updateStatus("Puzzle solved!", "success");
+          updateRating(true);
+          if (document.getElementById('nextPuzzleToggle').checked) {
+            setTimeout(loadPuzzle, 1500);
+          }
+        } else {
+          updateStatus("Your turn!", "info");
+        }
+        
+        updateNavigationButtons();
+      } else {
+        console.error("Invalid opponent move:", from, to);
+        updateStatus("Error with opponent's move!", "error");
+      }
+    }, 300);
+  }
+}
+
+function highlightMove(from, to) {
+  clearMoveHighlights();
+  
+  const fromSquare = $(`[data-square="${from}"]`);
+  const toSquare = $(`[data-square="${to}"]`);
+  
+  fromSquare.addClass('move-source');
+  toSquare.addClass('move-target');
+  
+  lastMove = { from, to };
+}
+
+function clearMoveHighlights() {
+  if (lastMove) {
+    $('.square-55d63').each(function() {
+      const square = $(this).data('square');
+      if (square !== lastMove.from && square !== lastMove.to) {
+        $(this).removeClass('move-source move-target checkmate-king');
+      }
+    });
+  } else {
+    $('.square-55d63').removeClass('move-source move-target checkmate-king');
+  }
+}
+
+function highlightCheckmateKing() {
+  const position = game.board();
+  const kingColor = game.turn();
+  
+  for (let i = 0; i < 8; i++) {
+    for (let j = 0; j < 8; j++) {
+      const piece = position[i][j];
+      if (piece && piece.type === 'k' && piece.color === kingColor) {
+        const square = String.fromCharCode(97 + j) + (8 - i);
+        $(`[data-square="${square}"]`).addClass('checkmate-king');
+        return;
+      }
+    }
+  }
 }
 
 function generateRandomId() {
@@ -918,52 +1021,6 @@ function generateRandomId() {
   return result;
 }
 
-function makeOpponentMove() {
-  if (currentMoveIndex < puzzleMoves.length) {
-    console.log("Making opponent move, index:", currentMoveIndex);
-    
-    const nextMove = puzzleMoves[currentMoveIndex];
-    const from = nextMove.slice(0, 2);
-    const to = nextMove.slice(2, 4);
-    
-    // Add a small delay to make the move more visible
-    setTimeout(() => {
-      const move = game.move({ from: from, to: to, promotion: 'q' });
-      
-      if (move) {
-        // Add opponent's move to history
-        addMoveToHistory(move);
-        
-        // Store the position after the move
-        positionHistory.push(game.fen());
-        currentHistoryIndex = positionHistory.length - 1;
-        
-        board.position(game.fen());
-        currentMoveIndex++;
-        
-        updateTurnIndicator(true);
-        
-        // Check if puzzle is solved after opponent's move
-        if (currentMoveIndex === puzzleMoves.length) {
-          updateStatus("Puzzle solved!", "success");
-          updateRating(true);
-          if (document.getElementById('nextPuzzleToggle').checked) {
-            setTimeout(loadPuzzle, 1500);
-          }
-        } else {
-          updateStatus("Your turn!", "info");
-        }
-        
-        // Update navigation buttons
-        updateNavigationButtons();
-      } else {
-        console.error("Invalid opponent move:", from, to);
-        updateStatus("Error with opponent's move!", "error");
-      }
-    }, 300);
-  }
-}
-
 function addMoveToHistory(move) {
   const moveNumber = Math.floor((moveHistory.length / 2) + 1);
   const isWhite = move.color === 'w';
@@ -972,7 +1029,7 @@ function addMoveToHistory(move) {
     number: moveNumber,
     white: isWhite,
     san: move.san,
-    index: moveHistory.length // Store position index for navigation
+    index: moveHistory.length
   });
   
   updateMoveHistory();
@@ -986,7 +1043,6 @@ function updateMoveHistory() {
   let moveGroup = null;
   
   moveHistory.forEach((move, index) => {
-    // Start a new move pair if this is a white move
     if (move.white) {
       currentMoveNumber = move.number;
       moveGroup = document.createElement('li');
@@ -996,20 +1052,17 @@ function updateMoveHistory() {
       moveGroup.addEventListener('click', () => goToHistoricalPosition(move.index));
       movesList.appendChild(moveGroup);
     } else {
-      // For black moves, append to the previous move group
       if (moveGroup) {
         moveGroup.innerHTML += ` ${move.san}`;
         moveGroup.dataset.index = move.index;
       }
     }
     
-    // Highlight the current move in view
     if (viewingHistoricalPosition && index === currentHistoryIndex) {
       moveGroup.classList.add('active');
     }
   });
   
-  // Scroll to the bottom to show latest moves
   const movesContainer = document.querySelector('.moves-list-container');
   if (movesContainer.scrollHeight > movesContainer.clientHeight) {
     movesContainer.scrollTop = movesContainer.scrollHeight;
@@ -1018,6 +1071,7 @@ function updateMoveHistory() {
 
 function updateTurnIndicator(isPlayerTurn = null) {
   const turnIndicator = document.getElementById('turnIndicator');
+  
   const turnIcon = turnIndicator.querySelector('.turn-icon');
   const turnText = document.getElementById('turnMessage');
   
@@ -1073,10 +1127,9 @@ function resetPuzzle() {
   board.position(game.fen());
   currentMoveIndex = 0;
   
-  // Clear any highlighted squares
+  clearMoveHighlights();
   $('.square-55d63').removeClass('highlight-square highlight-target');
   
-  // Reset history
   moveHistory = [];
   positionHistory = [currentPuzzleFen];
   currentHistoryIndex = 0;
@@ -1093,32 +1146,25 @@ function resetPuzzle() {
   }
 }
 
-// New function to go to previous move
 function goToPreviousMove() {
   if (currentHistoryIndex > 0) {
     currentHistoryIndex--;
     viewingHistoricalPosition = currentHistoryIndex < positionHistory.length - 1;
     
-    // Set up a new game object with the historical position
     const historicalFen = positionHistory[currentHistoryIndex];
-    board.position(historicalFen, true); // Animate the transition
+    board.position(historicalFen, true);
     
-    // Update UI to show we're in historical view mode
     updateTurnIndicator();
     updateNavigationButtons();
     
-    // Highlight the current move in the move history
     const moveItems = document.querySelectorAll('.move-item');
     moveItems.forEach(item => item.classList.remove('active'));
     
-    // Find the move item that corresponds to the current history index
-    // The logic is a bit tricky since the move items combine white and black moves
     const index = Math.floor(currentHistoryIndex / 2);
     if (index < moveItems.length) {
       moveItems[index].classList.add('active');
     }
     
-    // Add a subtle animation to indicate the change
     board.container.classList.add('fade-in');
     setTimeout(() => {
       board.container.classList.remove('fade-in');
@@ -1132,25 +1178,20 @@ function goToPreviousMove() {
   }
 }
 
-// New function to go to the latest move
 function goToLatestMove() {
   if (viewingHistoricalPosition) {
     currentHistoryIndex = positionHistory.length - 1;
     viewingHistoricalPosition = false;
     
-    // Set up the board with the latest position
     const latestFen = positionHistory[currentHistoryIndex];
-    board.position(latestFen, true); // Animate the transition
+    board.position(latestFen, true);
     
-    // Update UI
     updateTurnIndicator();
     updateNavigationButtons();
     
-    // Remove highlights from move history
     const moveItems = document.querySelectorAll('.move-item');
     moveItems.forEach(item => item.classList.remove('active'));
     
-    // Add a subtle animation to indicate the change
     board.container.classList.add('fade-in');
     setTimeout(() => {
       board.container.classList.remove('fade-in');
@@ -1160,31 +1201,25 @@ function goToLatestMove() {
   }
 }
 
-// Function to navigate to a specific move in history when clicking on a move in the list
 function goToHistoricalPosition(index) {
   if (index >= 0 && index < positionHistory.length) {
     currentHistoryIndex = index;
     viewingHistoricalPosition = index < positionHistory.length - 1;
     
-    // Set up the board with the historical position
     const historicalFen = positionHistory[index];
-    board.position(historicalFen, true); // Animate the transition
+    board.position(historicalFen, true);
     
-    // Update UI
     updateTurnIndicator();
     updateNavigationButtons();
     
-    // Highlight the current move in the move history
     const moveItems = document.querySelectorAll('.move-item');
     moveItems.forEach(item => item.classList.remove('active'));
     
-    // Find and highlight the clicked move
     const clickedMoveItem = document.querySelector(`.move-item[data-index="${index}"]`);
     if (clickedMoveItem) {
       clickedMoveItem.classList.add('active');
     }
     
-    // Add a subtle animation to indicate the change
     board.container.classList.add('fade-in');
     setTimeout(() => {
       board.container.classList.remove('fade-in');
@@ -1198,7 +1233,6 @@ function goToHistoricalPosition(index) {
   }
 }
 
-// Update navigation buttons state
 function updateNavigationButtons() {
   const prevMoveBtn = document.getElementById('prevMoveBtn');
   const latestMoveBtn = document.getElementById('latestMoveBtn');
@@ -1220,7 +1254,6 @@ function updateNavigationButtons() {
   }
 }
 
-// Add CSS for highlighting squares
 $(document).ready(function() {
   $('<style>')
     .prop('type', 'text/css')
@@ -1288,21 +1321,16 @@ document.getElementById('applyFilter').addEventListener('click', function() {
   loadPuzzle();
 });
 
-// Handle window resize to maintain aspect ratio
 window.addEventListener('resize', function() {
   if (board) {
     board.resize();
-    
-    // Re-initialize click handlers after resize
     setTimeout(initializeClickHandlers, 100);
   }
 });
 
-// Initialize with the first puzzle
 $(document).ready(function() {
   loadPuzzle();
 });
-
     </script>
   </body>
 </html>
